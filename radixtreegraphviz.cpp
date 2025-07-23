@@ -3,93 +3,89 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define MAX_CHILDREN 256  // For ASCII characters
+#define MAX_CHILDREN 256 
+#define MAX_INPUT 100   
 
-typedef struct RadixNode {
-    char *key;                           // Compressed key segment
-    void *value;                         // Value stored at this node (NULL if not a terminal)
-    struct RadixNode *children[MAX_CHILDREN];  // Children array
-    int num_children;                    // Number of active children
-    bool is_terminal;                    // True if this node represents end of a key
-} RadixNode;
+typedef struct RadixNo {
+    char *chave;                          
+    struct RadixNo *filhos[MAX_CHILDREN]; 
+    int num_filhos;                 
+    bool is_terminal;                  
+} RadixNo;
 
 typedef struct {
-    RadixNode *root;
+    RadixNo *root;
     int size;
 } RadixTree;
 
-// Function declarations
-RadixTree* radix_create();
-RadixNode* radix_node_create(const char *key);
-void radix_node_free(RadixNode *node);
+
+RadixTree* cria_radix();
+RadixNo* cria_radix_no(const char *chave);
+void radix_no_free(RadixNo *no);
 void radix_free(RadixTree *tree);
-int radix_insert(RadixTree *tree, const char *key, void *value);
-void* radix_search(RadixTree *tree, const char *key);
-int radix_delete(RadixTree *tree, const char *key);
-void radix_traverse(RadixTree *tree, void (*callback)(const char*, void*));
+int insere_radix(RadixTree *tree, const char *chave);
+bool busca_radix(RadixTree *tree, const char *chave);
 void radix_print(RadixTree *tree);
-void radix_export_graphviz(RadixTree *tree, const char *filename);
+void radix_exporta_graphviz(RadixTree *tree, const char *filename);
+void menu_interativo(RadixTree *tree);
+void limpar_buffer();
 
-// Helper functions
-static int find_common_prefix_length(const char *str1, const char *str2);
-static RadixNode* radix_insert_recursive(RadixNode *node, const char *key, void *value, int *inserted);
-static void* radix_search_recursive(RadixNode *node, const char *key);
-static RadixNode* radix_delete_recursive(RadixNode *node, const char *key, int *deleted);
-static void radix_traverse_recursive(RadixNode *node, char *prefix, int prefix_len, void (*callback)(const char*, void*));
-static void radix_print_recursive(RadixNode *node, char *prefix, int prefix_len, int depth);
-static void radix_graphviz_recursive(RadixNode *node, char *prefix, int prefix_len, FILE *file, int *node_id);
+static int busca_prefixo_comum_tamanho(const char *str1, const char *str2);
+static RadixNo* insere_radix_recursivo(RadixNo *no, const char *chave, int *inserido);
+static bool busca_radix_recursivo(RadixNo *no, const char *chave);
+static void radix_graphviz_recursivo(RadixNo *no, char *prefixo, int prefix_tam, FILE *file, int *no_id);
 
-// Create a new radix tree
-RadixTree* radix_create() {
+RadixTree* cria_radix() {
     RadixTree *tree = (RadixTree*)malloc(sizeof(RadixTree));
     if (!tree) return NULL;
     
-    tree->root = radix_node_create("");
+    tree->root = cria_radix_no("");
     tree->size = 0;
     return tree;
 }
 
-// Create a new radix tree node
-RadixNode* radix_node_create(const char *key) {
-    RadixNode *node = (RadixNode*)malloc(sizeof(RadixNode));
-    if (!node) return NULL;
+RadixNo* cria_radix_no(const char *chave) {
+    RadixNo *no = (RadixNo*)malloc(sizeof(RadixNo));
+    if (!no) return NULL;
     
-    node->key = strdup(key);
-    node->value = NULL;
-    node->num_children = 0;
-    node->is_terminal = false;
+    no->chave = strdup(chave);
+    no->num_filhos = 0;
+    no->is_terminal = false;
     
     for (int i = 0; i < MAX_CHILDREN; i++) {
-        node->children[i] = NULL;
+        no->filhos[i] = NULL;
     }
     
-    return node;
+    return no;
 }
 
-// Free a radix tree node and its subtree
-void radix_node_free(RadixNode *node) {
-    if (!node) return;
+void radix_no_free(RadixNo *no) {
+    if (!no) return;
     
     for (int i = 0; i < MAX_CHILDREN; i++) {
-        if (node->children[i]) {
-            radix_node_free(node->children[i]);
+        if (no->filhos[i]) {
+            radix_no_free(no->filhos[i]);
         }
     }
     
-    free(node->key);
-    free(node);
+    free(no->chave);
+    free(no);
 }
 
-// Free the entire radix tree
 void radix_free(RadixTree *tree) {
     if (!tree) return;
     
-    radix_node_free(tree->root);
+    radix_no_free(tree->root);
     free(tree);
 }
 
-// Find the length of common prefix between two strings
-static int find_common_prefix_length(const char *str1, const char *str2) {
+void limpar_buffer() {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+}
+
+
+static int busca_prefixo_comum_tamanho(const char *str1, const char *str2) {
     int i = 0;
     while (str1[i] && str2[i] && str1[i] == str2[i]) {
         i++;
@@ -97,108 +93,100 @@ static int find_common_prefix_length(const char *str1, const char *str2) {
     return i;
 }
 
-// Insert a key-value pair into the radix tree
-int radix_insert(RadixTree *tree, const char *key, void *value) {
-    if (!tree || !key) return 0;
+int insere_radix(RadixTree *tree, const char *chave) {
+    if (!tree || !chave || strlen(chave) == 0) return 0;
     
-    int inserted = 0;
-    tree->root = radix_insert_recursive(tree->root, key, value, &inserted);
+    int inserido = 0;
+    tree->root = insere_radix_recursivo(tree->root, chave, &inserido);
     
-    if (inserted) {
+    if (inserido) {
         tree->size++;
     }
     
-    return inserted;
+    return inserido;
 }
 
-// Recursive helper for insertion
-static RadixNode* radix_insert_recursive(RadixNode *node, const char *key, void *value, int *inserted) {
-    if (!node) {
-        node = radix_node_create(key);
-        node->value = value;
-        node->is_terminal = true;
-        *inserted = 1;
-        return node;
+static RadixNo* insere_radix_recursivo(RadixNo *no, const char *chave, int *inserido) {
+    if (!no) { //se nó for nulo cria uma chave inteira
+        no = cria_radix_no(chave);
+        no->is_terminal = true;
+        *inserido = 1;
+        return no;
     }
     
-    int common_len = find_common_prefix_length(node->key, key);
-    int node_key_len = strlen(node->key);
-    int key_len = strlen(key);
+    int prefixo_comum_tam = busca_prefixo_comum_tamanho(no->chave, chave);
+    int no_chave_tam = strlen(no->chave);
+    int chave_tam = strlen(chave);
     
-    if (common_len == node_key_len) {
-        // The node's key is a prefix of the search key
-        if (common_len == key_len) {
-            // Exact match - update value
-            if (!node->is_terminal) {
-                node->is_terminal = true;
-                *inserted = 1;
+    if (prefixo_comum_tam == no_chave_tam) {
+        if (prefixo_comum_tam == chave_tam) {
+        
+            if (!no->is_terminal) {
+                no->is_terminal = true;
+                *inserido = 1;
             }
-            node->value = value;
-            return node;
-        } else {
-            // Continue with the remaining key
-            const char *remaining_key = key + common_len;
-            unsigned char first_char = (unsigned char)remaining_key[0];
+            return no;
+        } else { //nao é identico
+        
+            const char *chave_restante = chave + prefixo_comum_tam;
+            unsigned char primeiro_char = (unsigned char)chave_restante[0];
             
-            node->children[first_char] = radix_insert_recursive(
-                node->children[first_char], remaining_key, value, inserted
+            no->filhos[primeiro_char] = insere_radix_recursivo(
+                no->filhos[primeiro_char], chave_restante, inserido
             );
             
-            if (node->children[first_char] && !node->children[first_char]->children[first_char]) {
-                node->num_children++;
+            if (no->filhos[primeiro_char] && *inserido) {
+                no->num_filhos++;
             }
             
-            return node;
+            return no;
         }
-    } else {
-        // Need to split the node
-        RadixNode *new_node = radix_node_create(node->key + common_len);
-        new_node->value = node->value;
-        new_node->is_terminal = node->is_terminal;
-        new_node->num_children = node->num_children;
+    } else { //existe o prefixo mas o nó precisa ser dividido
+       
+        RadixNo *novo_no = cria_radix_no(no->chave + prefixo_comum_tam);
+        novo_no->is_terminal = no->is_terminal;
+        novo_no->num_filhos = no->num_filhos;
         
-        // Move children to new node
+
         for (int i = 0; i < MAX_CHILDREN; i++) {
-            new_node->children[i] = node->children[i];
-            node->children[i] = NULL;
+            novo_no->filhos[i] = no->filhos[i];
+            no->filhos[i] = NULL;
         }
         
-        // Update current node
-        char *old_key = node->key;
-        node->key = (char*)malloc(common_len + 1);
-        strncpy(node->key, old_key, common_len);
-        node->key[common_len] = '\0';
-        free(old_key);
+        //atualiza o novo para ter apenas o prefixo comum
+        char *old_chave = no->chave;
+        no->chave = (char*)malloc(prefixo_comum_tam + 1);
+        strncpy(no->chave, old_chave, prefixo_comum_tam);
+        no->chave[prefixo_comum_tam] = '\0';
+        free(old_chave);
         
-        node->value = NULL;
-        node->is_terminal = false;
-        node->num_children = 1;
+        //nó agora intermediario
+        no->is_terminal = false;
+        no->num_filhos = 1;
         
-        // Add the split-off part as a child
-        unsigned char first_char = (unsigned char)new_node->key[0];
-        node->children[first_char] = new_node;
+        //conecta o novo nó como filho do nó com o prefixo comum
+        unsigned char primeiro_char = (unsigned char)novo_no->chave[0];
+        no->filhos[primeiro_char] = novo_no;
         
-        // Insert the new key
-        if (common_len == key_len) {
-            node->value = value;
-            node->is_terminal = true;
-            *inserted = 1;
-        } else {
-            const char *remaining_key = key + common_len;
-            unsigned char new_first_char = (unsigned char)remaining_key[0];
+   
+        if (prefixo_comum_tam == chave_tam) { //nova chave termina no prefixo comum
+            no->is_terminal = true;
+            *inserido = 1;
+        } else { //ainda tem um sufixo, então insere de forma recursiva o novo filho
+            const char *chave_restante = chave + prefixo_comum_tam;
+            unsigned char new_primeiro_char = (unsigned char)chave_restante[0];
             
-            node->children[new_first_char] = radix_insert_recursive(
-                NULL, remaining_key, value, inserted
+            no->filhos[new_primeiro_char] = insere_radix_recursivo(
+                NULL, chave_restante, inserido
             );
-            node->num_children++;
+            no->num_filhos++;
         }
         
-        return node;
+        return no;
     }
 }
 
-// Export radix tree to Graphviz DOT format
-void radix_export_graphviz(RadixTree *tree, const char *filename) {
+void radix_exporta_graphviz(RadixTree *tree, const char *filename) {
     if (!tree || !filename) return;
     
     FILE *file = fopen(filename, "w");
@@ -207,395 +195,227 @@ void radix_export_graphviz(RadixTree *tree, const char *filename) {
         return;
     }
     
-    // Write DOT header
     fprintf(file, "digraph RadixTree {\n");
     fprintf(file, "    rankdir=TB;\n");
     fprintf(file, "    node [shape=record, fontname=\"Arial\", fontsize=10];\n");
     fprintf(file, "    edge [fontname=\"Arial\", fontsize=8];\n");
     fprintf(file, "    \n");
     
-    // Generate nodes and edges
-    int node_id = 0;
-    char prefix[1000];
-    radix_graphviz_recursive(tree->root, prefix, 0, file, &node_id);
+    int no_id = 0;
+    char prefixo[1000];
+    radix_graphviz_recursivo(tree->root, prefixo, 0, file, &no_id);
     
     fprintf(file, "}\n");
     fclose(file);
     
-    printf("Graphviz DOT file exported to: %s\n", filename);
-    printf("To generate image: dot -Tpng %s -o radix_tree.png\n", filename);
-    printf("Or view with: xdot %s\n", filename);
+    printf("Arquivo Graphviz exportado para: %s\n", filename);
+
 }
 
-// Recursive helper for Graphviz export
-static void radix_graphviz_recursive(RadixNode *node, char *prefix, int prefix_len, FILE *file, int *node_id) {
-    if (!node) return;
+
+static void radix_graphviz_recursivo(RadixNo *no, char *prefixo, int prefix_tam, FILE *file, int *no_id) {
+    if (!no) return;
     
-    int current_id = (*node_id)++;
+    int id_atual = (*no_id)++; //incrementa o id do proximo no
     
-    // Build full key path
-    int key_len = strlen(node->key);
-    strcpy(prefix + prefix_len, node->key);
-    int new_prefix_len = prefix_len + key_len;
-    prefix[new_prefix_len] = '\0';
+    int chave_tam = strlen(no->chave);
+    strcpy(prefixo + prefix_tam, no->chave);
+    int new_prefix_tam = prefix_tam + chave_tam;
+    prefixo[new_prefix_tam] = '\0';
     
-    // Escape special characters for DOT format
-    char escaped_key[1000];
-    char escaped_prefix[1000];
+    char escaped_chave[1000];
+    char escaped_prefixo[1000];
     int j = 0;
     
-    // Escape node key
-    for (int i = 0; node->key[i] && j < 998; i++) {
-        if (node->key[i] == '"' || node->key[i] == '\\' || node->key[i] == '\n') {
-            escaped_key[j++] = '\\';
+    for (int i = 0; no->chave[i] && j < 998; i++) { //escape para nao quebrar o .dot
+        if (no->chave[i] == '"' || no->chave[i] == '\\' || no->chave[i] == '\n') {
+            escaped_chave[j++] = '\\';
         }
-        escaped_key[j++] = node->key[i];
+        escaped_chave[j++] = no->chave[i];
     }
-    escaped_key[j] = '\0';
+    escaped_chave[j] = '\0';
     
-    // Escape full prefix
     j = 0;
-    for (int i = 0; prefix[i] && j < 998; i++) {
-        if (prefix[i] == '"' || prefix[i] == '\\' || prefix[i] == '\n') {
-            escaped_prefix[j++] = '\\';
+    for (int i = 0; prefixo[i] && j < 998; i++) {//mesmo pro prefixo
+        if (prefixo[i] == '"' || prefixo[i] == '\\' || prefixo[i] == '\n') {
+            escaped_prefixo[j++] = '\\';
         }
-        escaped_prefix[j++] = prefix[i];
+        escaped_prefixo[j++] = prefixo[i];
     }
-    escaped_prefix[j] = '\0';
+    escaped_prefixo[j] = '\0';
     
-    // Create node label
-    if (strlen(node->key) == 0) {
-        // Root node
-        if (node->is_terminal) {
-            fprintf(file, "    node%d [label=\"{ROOT|terminal|%p}\", style=filled, fillcolor=lightblue];\n", 
-                   current_id, node->value);
+   
+    if (strlen(no->chave) == 0) { //para raiz
+        
+        if (no->is_terminal) {
+            fprintf(file, "    node%d [label=\"{ROOT|PALAVRA}\", style=filled, fillcolor=lightblue];\n", 
+                   id_atual);
         } else {
-            fprintf(file, "    node%d [label=\"ROOT\", style=filled, fillcolor=lightgray];\n", current_id);
+            fprintf(file, "    node%d [label=\"ROOT\", style=filled, fillcolor=lightgray];\n", id_atual);
         }
     } else {
-        // Regular node
-        if (node->is_terminal) {
-            fprintf(file, "    node%d [label=\"{%s|full: %s|terminal|%p}\", style=filled, fillcolor=lightgreen];\n", 
-                   current_id, escaped_key, escaped_prefix, node->value);
-        } else {
-            fprintf(file, "    node%d [label=\"{%s|full: %s|internal}\", style=filled, fillcolor=lightyellow];\n", 
-                   current_id, escaped_key, escaped_prefix);
+    
+        if (no->is_terminal) { //define palavra inteira com verde
+            fprintf(file, "    node%d [label=\"{%s|palavra: %s}\", style=filled, fillcolor=lightgreen];\n", 
+                   id_atual, escaped_chave, escaped_prefixo);
+        } else { //prefixo com amarelo
+            fprintf(file, "    node%d [label=\"{%s|prefixo: %s}\", style=filled, fillcolor=lightyellow];\n", 
+                   id_atual, escaped_chave, escaped_prefixo);
         }
     }
     
-    // Process children
-    for (int i = 0; i < MAX_CHILDREN; i++) {
-        if (node->children[i]) {
-            int child_id = *node_id;
-            radix_graphviz_recursive(node->children[i], prefix, new_prefix_len, file, node_id);
+
+    for (int i = 0; i < MAX_CHILDREN; i++) { 
+        if (no->filhos[i]) {
+            int child_id = *no_id;
+            radix_graphviz_recursivo(no->filhos[i], prefixo, new_prefix_tam, file, no_id);
             
-            // Create edge with character label
-            char edge_label[10];
-            if (i >= 32 && i <= 126) {  // Printable ASCII
+            //forma de nao quebrar o .dot
+            char aresta_label[10];
+            if (i >= 32 && i <= 126) { 
                 if (i == '"' || i == '\\') {
-                    snprintf(edge_label, sizeof(edge_label), "'%c'", (char)i);
+                    snprintf(aresta_label, sizeof(aresta_label), "'%c'", (char)i);
                 } else {
-                    snprintf(edge_label, sizeof(edge_label), "%c", (char)i);
+                    snprintf(aresta_label, sizeof(aresta_label), "%c", (char)i);
                 }
             } else {
-                snprintf(edge_label, sizeof(edge_label), "\\\\x%02X", i);
+                snprintf(aresta_label, sizeof(aresta_label), "\\\\x%02X", i);
             }
-            
+            //aqui escreve a aresta
             fprintf(file, "    node%d -> node%d [label=\"%s\"];\n", 
-                   current_id, child_id, edge_label);
+                   id_atual, child_id, aresta_label);
         }
     }
 }
 
-// Search for a key in the radix tree
-void* radix_search(RadixTree *tree, const char *key) {
-    if (!tree || !key) return NULL;
+bool busca_radix(RadixTree *tree, const char *chave) {
+    if (!tree || !chave || strlen(chave) == 0) return false;
     
-    return radix_search_recursive(tree->root, key);
+    return busca_radix_recursivo(tree->root, chave);
 }
 
-// Recursive helper for search
-static void* radix_search_recursive(RadixNode *node, const char *key) {
-    if (!node) return NULL;
+static bool busca_radix_recursivo(RadixNo *no, const char *chave) {
+    if (!no) return false;
     
-    int common_len = find_common_prefix_length(node->key, key);
-    int node_key_len = strlen(node->key);
-    int key_len = strlen(key);
+    int prefixo_comum_tam = busca_prefixo_comum_tamanho(no->chave, chave);
+    int no_chave_tam = strlen(no->chave);
+    int chave_tam = strlen(chave);
     
-    if (common_len == node_key_len) {
-        if (common_len == key_len) {
-            return node->is_terminal ? node->value : NULL;
+    if (prefixo_comum_tam == no_chave_tam) {
+        if (prefixo_comum_tam == chave_tam) {
+            return no->is_terminal;
         } else {
-            const char *remaining_key = key + common_len;
-            unsigned char first_char = (unsigned char)remaining_key[0];
-            return radix_search_recursive(node->children[first_char], remaining_key);
+            const char *chave_restante = chave + prefixo_comum_tam;
+            unsigned char primeiro_char = (unsigned char)chave_restante[0];
+            return busca_radix_recursivo(no->filhos[primeiro_char], chave_restante);
         }
     }
     
-    return NULL;
+    return false;
 }
 
-// Delete a key from the radix tree
-int radix_delete(RadixTree *tree, const char *key) {
-    if (!tree || !key) return 0;
+void menu_interativo(RadixTree *tree) {
+    int opcao;
+    char palavra[MAX_INPUT];
+    bool resultado;
     
-    int deleted = 0;
-    tree->root = radix_delete_recursive(tree->root, key, &deleted);
-    
-    if (deleted) {
-        tree->size--;
-    }
-    
-    return deleted;
-}
-
-// Recursive helper for deletion
-static RadixNode* radix_delete_recursive(RadixNode *node, const char *key, int *deleted) {
-    if (!node) return NULL;
-    
-    int common_len = find_common_prefix_length(node->key, key);
-    int node_key_len = strlen(node->key);
-    int key_len = strlen(key);
-    
-    if (common_len == node_key_len) {
-        if (common_len == key_len) {
-            // Found the node to delete
-            if (node->is_terminal) {
-                node->is_terminal = false;
-                node->value = NULL;
-                *deleted = 1;
-                
-                // If node has no children, it can be removed
-                if (node->num_children == 0) {
-                    radix_node_free(node);
-                    return NULL;
-                }
-                
-                // If node has only one child, merge with child
-                if (node->num_children == 1) {
-                    RadixNode *child = NULL;
-                    for (int i = 0; i < MAX_CHILDREN; i++) {
-                        if (node->children[i]) {
-                            child = node->children[i];
-                            break;
-                        }
-                    }
+    do {
+        printf("\n========================================\n");
+        printf("    RADIX TREE\n");
+        printf("========================================\n");
+        printf("1. Adicionar palavra\n");
+        printf("2. Buscar palavra\n");
+        printf("3. Exportar para Graphviz (.dot)\n");
+        printf("0. Sair\n");
+        printf("========================================\n");
+        printf("Escolha uma opcao: ");
+        
+        if (scanf("%d", &opcao) != 1) {
+            printf(" Entrada Invalida! Digite um numero.\n");
+            limpar_buffer();
+            continue;
+        }
+        limpar_buffer();
+        
+        switch (opcao) {
+            case 1:
+                printf("\n--- ADICIONAR PALAVRA ---\n");
+                printf("Digite a palavra: ");
+                if (fgets(palavra, sizeof(palavra), stdin) != NULL) {
+                    palavra[strcspn(palavra, "\n")] = 0;
                     
-                    // Merge node with its single child
-                    char *new_key = (char*)malloc(strlen(node->key) + strlen(child->key) + 1);
-                    strcpy(new_key, node->key);
-                    strcat(new_key, child->key);
-                    
-                    free(node->key);
-                    free(child->key);
-                    
-                    node->key = new_key;
-                    node->value = child->value;
-                    node->is_terminal = child->is_terminal;
-                    node->num_children = child->num_children;
-                    
-                    for (int i = 0; i < MAX_CHILDREN; i++) {
-                        node->children[i] = child->children[i];
-                    }
-                    
-                    free(child);
-                }
-            }
-            return node;
-        } else {
-            // Continue deletion in subtree
-            const char *remaining_key = key + common_len;
-            unsigned char first_char = (unsigned char)remaining_key[0];
-            
-            RadixNode *old_child = node->children[first_char];
-            node->children[first_char] = radix_delete_recursive(
-                node->children[first_char], remaining_key, deleted
-            );
-            
-            if (old_child && !node->children[first_char]) {
-                node->num_children--;
-            }
-            
-            // Check if current node can be merged or removed
-            if (!node->is_terminal && node->num_children == 1) {
-                RadixNode *child = NULL;
-                for (int i = 0; i < MAX_CHILDREN; i++) {
-                    if (node->children[i]) {
-                        child = node->children[i];
+                    if (strlen(palavra) == 0) {
+                        printf(" Palavra nao pode estar vazia!\n");
                         break;
                     }
+                    
+                    int resultado = insere_radix(tree, palavra);
+                    if (resultado) {
+                        printf("Palavra '%s' adicionada com sucesso!\n", palavra);
+                        printf("Total de palavras: %d\n", tree->size);
+                    } else {
+                        printf("Palavra '%s' ja existe\n", palavra);
+                    }
+                } else {
+                    printf(" Erro ao ler a palavra!\n");
                 }
+                break;
                 
-                // Merge node with its single child
-                char *new_key = (char*)malloc(strlen(node->key) + strlen(child->key) + 1);
-                strcpy(new_key, node->key);
-                strcat(new_key, child->key);
-                
-                free(node->key);
-                free(child->key);
-                
-                node->key = new_key;
-                node->value = child->value;
-                node->is_terminal = child->is_terminal;
-                node->num_children = child->num_children;
-                
-                for (int i = 0; i < MAX_CHILDREN; i++) {
-                    node->children[i] = child->children[i];
+            case 2:
+                printf("\n--- BUSCAR PALAVRA ---\n");
+                printf("Digite a palavra para buscar: ");
+                if (fgets(palavra, sizeof(palavra), stdin) != NULL) {
+                    palavra[strcspn(palavra, "\n")] = 0;
+                    
+                    if (strlen(palavra) == 0) {
+                        printf(" Palavra nao pode estar vazia!\n");
+                        break;
+                    }
+                    
+                    resultado = busca_radix(tree, palavra);
+                    if (resultado) {
+                        printf("Palavra '%s' encontrada!\n", palavra);
+                    } else {
+                        printf("Palavra '%s' nao encontrada.\n", palavra);
+                    }
+                } else {
+                    printf(" Erro ao ler a palavra!\n");
                 }
+                break;
                 
-                free(child);
-            }
-            
-            return node;
+            case 3:
+                printf("\n--- EXPORTAR PARA GRAPHVIZ ---\n");
+                if (tree->size == 0) {
+                    printf("O dicionario esta vazio.\n");
+                } else {
+                    radix_exporta_graphviz(tree, "radix_tree_teste.dot");
+                }
+                break;
+                
+            case 0:
+                printf("\n Finalizando programa...\n");
+                break;
+                
+            default:
+                printf(" Opcao invalida\n");
+                break;
         }
-    }
-    
-    return node;
+    } while (opcao != 0);
 }
 
-// Traverse the radix tree and call callback for each key-value pair
-void radix_traverse(RadixTree *tree, void (*callback)(const char*, void*)) {
-    if (!tree || !callback) return;
-    
-    char prefix[1000];  // Assume keys won't exceed 1000 characters
-    radix_traverse_recursive(tree->root, prefix, 0, callback);
-}
-
-// Recursive helper for traversal
-static void radix_traverse_recursive(RadixNode *node, char *prefix, int prefix_len, void (*callback)(const char*, void*)) {
-    if (!node) return;
-    
-    // Add current node's key to prefix
-    int key_len = strlen(node->key);
-    strcpy(prefix + prefix_len, node->key);
-    int new_prefix_len = prefix_len + key_len;
-    
-    // If this is a terminal node, call callback
-    if (node->is_terminal) {
-        prefix[new_prefix_len] = '\0';
-        callback(prefix, node->value);
-    }
-    
-    // Recurse on children
-    for (int i = 0; i < MAX_CHILDREN; i++) {
-        if (node->children[i]) {
-            radix_traverse_recursive(node->children[i], prefix, new_prefix_len, callback);
-        }
-    }
-}
-
-// Print the radix tree structure
-void radix_print(RadixTree *tree) {
-    if (!tree) return;
-    
-    printf("Radix Tree (size: %d):\n", tree->size);
-    char prefix[1000];
-    radix_print_recursive(tree->root, prefix, 0, 0);
-}
-
-// Recursive helper for printing tree structure
-static void radix_print_recursive(RadixNode *node, char *prefix, int prefix_len, int depth) {
-    if (!node) return;
-    
-    // Print indentation
-    for (int i = 0; i < depth; i++) {
-        printf("  ");
-    }
-    
-    // Add current node's key to prefix
-    int key_len = strlen(node->key);
-    strcpy(prefix + prefix_len, node->key);
-    int new_prefix_len = prefix_len + key_len;
-    prefix[new_prefix_len] = '\0';
-    
-    // Print node information
-    if (node->is_terminal) {
-        printf("'%s' -> %p (terminal)\n", prefix, node->value);
-    } else {
-        printf("'%s' (internal)\n", node->key);
-    }
-    
-    // Recurse on children
-    for (int i = 0; i < MAX_CHILDREN; i++) {
-        if (node->children[i]) {
-            radix_print_recursive(node->children[i], prefix, new_prefix_len, depth + 1);
-        }
-    }
-}
-
-// Example callback function for traversal
-void print_key_value(const char *key, void *value) {
-    printf("Key: '%s', Value: %p\n", key, value);
-}
-
-// Example usage and test function
+// Main function with interactive menu
 int main() {
-    RadixTree *tree = radix_create();
+    printf("=== INICIALIZANDO RADIX TREE ===\n");
     
-    // Test data
-    char *keys[] = {"hello", "help", "hell", "world", "word", "work", "test", "testing", "tea", "team"};
-    int values[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    int num_keys = sizeof(keys) / sizeof(keys[0]);
-    
-    printf("=== Radix Tree Test ===\n\n");
-    
-    // Insert keys
-    printf("Inserting keys:\n");
-    for (int i = 0; i < num_keys; i++) {
-        int result = radix_insert(tree, keys[i], &values[i]);
-        printf("Insert '%s': %s\n", keys[i], result ? "SUCCESS" : "FAILED");
-    }
-    printf("\n");
-    
-    // Print tree structure
-    radix_print(tree);
-    printf("\n");
-    
-    // Search for keys
-    printf("Searching for keys:\n");
-    for (int i = 0; i < num_keys; i++) {
-        void *result = radix_search(tree, keys[i]);
-        if (result) {
-            printf("Search '%s': FOUND (value: %d)\n", keys[i], *(int*)result);
-        } else {
-            printf("Search '%s': NOT FOUND\n", keys[i]);
-        }
+    RadixTree *tree = cria_radix();
+    if (!tree) {
+        printf(" Erro ao criar a arvore\n");
+        return 1;
     }
     
-    // Search for non-existent key
-    printf("Search 'nonexistent': %s\n", radix_search(tree, "nonexistent") ? "FOUND" : "NOT FOUND");
-    printf("\n");
     
-    // Traverse tree
-    printf("Tree traversal:\n");
-    radix_traverse(tree, print_key_value);
-    printf("\n");
-    
-    // Delete some keys
-    printf("Deleting keys:\n");
-    char *keys_to_delete[] = {"help", "test", "word"};
-    int num_delete = sizeof(keys_to_delete) / sizeof(keys_to_delete[0]);
-    
-    for (int i = 0; i < num_delete; i++) {
-        int result = radix_delete(tree, keys_to_delete[i]);
-        printf("Delete '%s': %s\n", keys_to_delete[i], result ? "SUCCESS" : "FAILED");
-    }
-    printf("\n");
-    
-    // Print tree after deletion
-    printf("Tree after deletion:\n");
-    radix_print(tree);
-    printf("\n");
-    
-    // Final traversal
-    printf("Final tree traversal:\n");
-    radix_traverse(tree, print_key_value);
-    printf("\n");
-    
-    // Export to Graphviz
-    printf("Exporting to Graphviz...\n");
-    radix_export_graphviz(tree, "radix_tree.dot");
-    printf("\n");
+    // Start interactive menu
+    menu_interativo(tree);
     
     // Cleanup
     radix_free(tree);
