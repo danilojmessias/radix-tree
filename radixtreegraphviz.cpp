@@ -174,9 +174,9 @@ static RadixNo* insere_radix_recursivo(RadixNo *no, const char *chave, int *inse
             *inserido = 1;
         } else { //ainda tem um sufixo, então insere de forma recursiva o novo filho
             const char *chave_restante = chave + prefixo_comum_tam;
-            unsigned char new_primeiro_char = (unsigned char)chave_restante[0];
+            unsigned char novo_primeiro_char = (unsigned char)chave_restante[0];
             
-            no->filhos[new_primeiro_char] = insere_radix_recursivo(
+            no->filhos[novo_primeiro_char] = insere_radix_recursivo(
                 NULL, chave_restante, inserido
             );
             no->num_filhos++;
@@ -403,7 +403,6 @@ void menu_interativo(RadixTree *tree) {
     } while (opcao != 0);
 }
 
-// Main function with interactive menu
 int main() {
     printf("=== INICIALIZANDO RADIX TREE ===\n");
     
@@ -414,10 +413,10 @@ int main() {
     }
     
     
-    // Start interactive menu
+
     menu_interativo(tree);
     
-    // Cleanup
+
     radix_free(tree);
     
     return 0;
